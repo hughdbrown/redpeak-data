@@ -2,10 +2,12 @@
 # /// script
 # requires-python = ">=3.11"
 # dependencies = [
+# "click",
 # "requests",
 # ]
 # ///
 import csv
+import filecmp
 from datetime import datetime
 import logging
 import os
@@ -14,6 +16,7 @@ from re import compile
 from sys import stdin
 import re
 
+import click
 import requests
 
 FORMAT = '%(asctime)s %(levelname)s %(message)s'
@@ -74,14 +77,14 @@ def process_line(line):
     return x
 
 
-def do_property(url: str, property_name: str):
+def do_property(url: str, property_name: str, data_dir: Path):
     logger.info(f"{url = } {property_name = }")
 
     now = datetime.now()
-    output: Path = Path("data").joinpath(property_name)
+    output: Path = data_dir.joinpath(property_name)
     if not output.exists():
         logger.info(f"Creating {str(output)}")
-        output.mkdir() 
+        output.mkdir(parents=True)
     output_file: Path = output.joinpath(f"rents-{now:%Y-%m-%d}.txt")
 
     full_url = f"{url}?spaces_sort=pr_asc&spaces_tab=unit"
@@ -127,14 +130,40 @@ def do_property(url: str, property_name: str):
                 rent = int(d[tags[2]])
                 handle.write(f"{i}: {soonest:%Y-%m-%d} {days} {rent} {rent * (days / 30):.02f}\n")
         """
-    
-if __name__ == '__main__':
-    with open("properties.csv") as handle:
-        # fields = handle.readline().strip().split(',')
-        # logger.debug(f"{fields = }")
-        reader = csv.DictReader(handle) # , fields)
+
+    prior = max(
+        (p for p in output.glob("rents-*.txt") if p != output_file),
+        default=None,
+        key=lambda p: p.name,
+    )
+    if prior is not None and filecmp.cmp(prior, output_file, shallow=False):
+        logger.info(f"{output_file} matches {prior}; removing duplicate")
+        output_file.unlink()
+
+
+@click.command()
+@click.option(
+    "--csv-path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=Path("properties.csv"),
+    show_default=True,
+    help="CSV file with url,name columns.",
+)
+@click.option(
+    "--data-dir",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path("data"),
+    show_default=True,
+    help="Directory to write per-property data into.",
+)
+def main(csv_path: Path, data_dir: Path):
+    with csv_path.open() as handle:
+        reader = csv.DictReader(handle)
         for d in reader:
             logger.debug(f"{d = }")
-            url, property_name = d["url"], d["name"]
-            do_property(url, property_name)
+            do_property(d["url"], d["name"], data_dir)
+
+
+if __name__ == '__main__':
+    main()
 
