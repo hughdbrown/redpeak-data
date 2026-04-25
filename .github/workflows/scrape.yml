@@ -19,7 +19,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v3
       - name: Fetch latest data
-        run: ./redpeak-vacancy.py
+        run: ./redpeak-vacancy.py scrape
       - name: Commit and push if it changed
         run: |-
           git config user.name "Automated"
