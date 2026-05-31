@@ -1,0 +1,359 @@
+ ▐▛███▜▌   Claude Code v2.1.156
+▝▜█████▛▘  Opus 4.8 · Claude Max
+  ▘▘ ▝▝    ~/workspace/hughdbrown/redpeak-data
+
+
+❯ Create a python program that aggregates the data for an apartment complex (in 
+  `data/<apartment-complex>`) by:                                               
+  - creating a temporary sqlite database file of                                
+  -- date, apartment number, rent (where date and apartment number are unique   
+  and the primary key)                                                          
+  - Running a query that selects, for each apartment in the apartment complex,  
+  the:                                                                          
+  -- first rent for an apartment by date                                        
+  -- last rent for an apartment by date                                         
+  -- lowest rent                                                                
+  -- highest rent                                                               
+  The output should be rows of data with `<apt-no>, <open-rent>, <low-rent>,    
+  <high-rent>, <close-rent>`                                                    
+                                                                                
+  Delete the sqlite database when done.                                         
+
+⏺ I'll start by understanding the data format before writing the program.
+
+  Listed 1 directory (ctrl+o to expand)
+
+⏺ I'll explore the structure of one complex's data to understand the format.
+
+⏺ Bash(cd data/10-s-penn && ls | head && echo "---COUNT---" && ls | wc -l &&
+      echo "---SAMPLE FILE---" && ls | head -1)
+  ⎿  rents-2026-04-24.txt
+     rents-2026-04-25.txt
+     rents-2026-05-07.txt
+     … +11 lines (ctrl+o to expand)
+
+⏺ Bash(cd data/10-s-penn && echo "=== rents-2026-04-24.txt ===" && cat
+      rents-2026-04-24.txt && echo "" && echo "=== rents-2026-05-14.txt ===" &&
+      cat rents-2026-05-14.t…)
+  ⎿  Error: Exit code 1
+     (eval):cd:1: no such file or directory: data/10-s-penn
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ Two file formats exist. Let me examine the variation across files and
+  complexes more thoroughly.
+
+⏺ Bash(cd /Users/hughbrown/workspace/hughdbrown/redpeak-data
+      echo "=== Distinct header lines across ALL files ==="…)
+  ⎿  === Distinct header lines across ALL files ===
+     1490 date  bdrm  price unit  area
+       45 num  date  bdrm  price unit  area
+     … +3 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/hughbrown/workspace/hughdbrown/redpeak-data
+      echo "=== A file with num header (full) ==="…)
+  ⎿  === A file with num header (full) ===
+     num  date  bdrm  price unit  area
+     0: 2026-06-10 0 993 10.100 308
+     … +29 lines (ctrl+o to expand)
+
+⏺ Now let me verify the unit column is the apartment identifier and check for
+  duplicates within a file.
+
+⏺ Bash(cd /Users/hughbrown/workspace/hughdbrown/redpeak-data
+      echo "=== largest complex by total lines, sample ==="…)
+  ⎿  === largest complex by total lines, sample ===
+          494 total
+     --- one file from canopy-creek ---
+     … +8 lines (ctrl+o to expand)
+
+⏺ No duplicate units within a file — unit is a clean apartment identifier. Let
+  me check existing repo conventions before writing.
+
+⏺ Bash(cd /Users/hughbrown/workspace/hughdbrown/redpeak-data
+      echo "=== root listing ===" && ls -la | grep -v '^d.*data$'…)
+  ⎿  === root listing ===
+     total 40
+     drwxr-xr-x@   9 hughbrown  staff   288 May 31 12:42 .
+     … +11 lines (ctrl+o to expand)
+
+❯ The first data format is used for a short period -- maybe 2-4 days. Skip files using that format. 
+
+⏺ Noted — I'll skip the num-format files entirely. Let me look at the existing
+  script's style to match conventions.
+
+  Read 1 file (ctrl+o to expand)
+
+⏺ I have everything I need. The num-format files will be skipped per your
+  instruction. Writing the aggregator now, matching the existing
+  redpeak-vacancy.py conventions (uv inline-script, click, pathlib).
+
+  Note on the date dimension: the meaningful time axis is the scrape date (from
+  each rents-YYYY-MM-DD.txt filename), not the availability date column inside
+  the file — that's what makes "open/close rent over time" meaningful. I'll key
+  the DB on (scrape_date, apt_no).
+
+⏺ Write(aggregate-rents.py)
+  ⎿  Wrote 164 lines to aggregate-rents.py
+       2 # /// scriptnv -S uv run --script
+       3 # requires-python = ">=3.11"
+       4 # dependencies = [
+       5 # "click",
+       6 # ]
+       7 # ///
+       8 """Aggregate per-apartment rent history for one complex.
+       9 
+      10 Reads the daily snapshot files in ``data/<complex>/rents-YYYY-MM
+         -DD.txt``,
+     … +184 lines (ctrl+o to expand)
+
+⏺ Bash(cd /Users/hughbrown/workspace/hughdbrown/redpeak-data
+      chmod +x aggregate-rents.py…)
+  ⎿  === 10-s-penn (small: 2 units) ===
+     Traceback (most recent call last):
+       File "/Users/hughbrown/workspace/hughdbrown/redpeak-data/aggregate-r
+     … +10 lines (ctrl+o to expand)
+
+⏺ The script uses uv's inline dependencies — run it via uv (or the shebang), not
+  bare python3.
+
+⏺ Bash(cd /Users/hughbrown/workspace/hughdbrown/redpeak-data
+      echo "=== 10-s-penn ==="…)
+  ⎿  === 10-s-penn ===
+     Installed 1 package in 2ms
+     apt,open_rent,low_rent,high_rent,close_rent
+     … +22 lines (ctrl+o to expand)
+⏺ Let me verify correctness by hand-checking one apartment's full history
+  against the raw files.
+
+⏺ Bash(cd /Users/hughbrown/workspace/hughdbrown/redpeak-data
+      echo "=== unit 10.308 across canonical files (date-sorted), price=col2
+      unit=col4 ==="…)
+  ⎿  === unit 10.308 across canonical files (date-sorted), price=col2 unit=
+     col4 ===
+     2026-04-25 rent=1190
+     … +15 lines (ctrl+o to expand)
+
+⏺ Verified. For unit 10.308: earliest scrape (2026-04-25) = 1190 (open ✓),
+  latest (2026-05-22) = 1192 (close ✓), min = 1190 (low ✓), max = 1199 (high ✓)
+  — exactly matching the program's output 10.308,1190,1190,1199,1192. The temp
+  database is cleaned up (none leaked).
+
+  Done
+
+  Created aggregate-rents.py — a uv inline-script matching the repo's existing
+  redpeak-vacancy.py conventions (click CLI, pathlib, logging).
+
+  What it does
+  1. Reads data/<complex>/rents-YYYY-MM-DD.txt snapshots, skipping the old num …
+  format files per your instruction (it keys on the exact canonical header).
+  2. Loads (scrape_date, apartment, rent) into a temporary SQLite db
+  (tempfile.mkstemp), with PRIMARY KEY (date, apt).
+  3. Runs one window-function query producing, per apartment: FIRST_VALUE→open,
+  LAST_VALUE→close, MIN→low, MAX→high (ordered by scrape date).
+  4. Prints CSV rows apt, open_rent, low_rent, high_rent, close_rent.
+  5. Deletes the db in a finally block, so it's removed even on error.
+
+  Usage
+  ./aggregate-rents.py 10-s-penn              # CSV with header to stdout
+  ./aggregate-rents.py --no-header canopy-creek
+  LOGLEVEL=info ./aggregate-rents.py 10-s-penn   # see skipped files / db 
+  cleanup
+
+  Key design decision (flagging since it's a real choice): the time axis is the
+  scrape date from the filename, not the availability-date column inside each
+  file. That's what makes "first/last rent by date" a price-over-time series —
+  open = rent at the earliest snapshot, close = rent at the latest. If you
+  actually wanted the in-file availability date as the key instead, that's a
+  one-line change (COL/regex), but I'm fairly confident scrape-date is what you
+  meant given the daily git-scraper design.
+
+  One note: the spec said the DB holds date, apartment number, rent with (date, 
+  apt) as the PK — I kept exactly that schema; bdrm/area are read past but not
+  stored, since the aggregation doesn't need them.
+
+✻ Churned for 2m 36s
+
+! ls *.py                                                                       
+  ⎿  aggregate-rents.py
+     redpeak-vacancy.py
+
+! more aggregate-rents.py                                                       
+  ⎿  #!/usr/bin/env -S uv run --script
+     # /// script
+     # requires-python = ">=3.11"
+     # dependencies = [
+     # "click",
+     # ]
+     # ///
+     """Aggregate per-apartment rent history for one complex.
+
+     Reads the daily snapshot files in ``data/<complex>/rents-YYYY-MM-DD.txt``,
+     loads ``(scrape_date, apartment, rent)`` into a throwaway SQLite database,
+     and reports for every apartment its opening, low, high, and closing rent.
+
+     The "date" axis is the *scrape date* taken from each filename -- i.e. when
+     we
+     observed the rent -- not the availability ``date`` column inside the file.
+     That is what makes "first/last rent by date" a meaningful time series.
+
+     The first historical file format (header ``num  date  bdrm ...``) was only
+     emitted for a few days and is skipped.
+     """
+     import csv
+     import logging
+     import os
+     import re
+     import sqlite3
+     import sys
+     import tempfile
+     from pathlib import Path
+
+     import click
+
+     FORMAT = '%(asctime)s %(levelname)s %(message)s'
+     log_level = os.environ.get('LOGLEVEL', 'WARNING').upper()
+     logging.basicConfig(
+         format=FORMAT,
+         datefmt="%Y-%m-%dT%H:%M:%S",
+         level=log_level,
+     )
+     logger = logging.getLogger(__name__)
+
+     # rents-2026-05-14.txt -> 2026-05-14
+     SCRAPE_DATE_RE = re.compile(r"rents-(\d{4}-\d{2}-\d{2})\.txt$")
+
+     # The canonical (current) format. The older "num  date  bdrm ..." format is
+     skipped.
+     CANONICAL_HEADER = "date  bdrm  price unit  area"
+
+     # Column order within a canonical data line: date bdrm price unit area
+     COL_PRICE = 2
+     COL_UNIT = 3
+
+     CREATE_TABLE = """
+     CREATE TABLE rents (
+         date  TEXT NOT NULL,
+         apt   TEXT NOT NULL,
+         rent  INTEGER NOT NULL,
+         PRIMARY KEY (date, apt)
+     )
+     """
+
+     # For each apartment: opening rent (earliest scrape), closing rent (latest
+     # scrape), and the low/high seen across all scrapes.
+     AGGREGATE_QUERY = """
+     SELECT apt, open_rent, low_rent, high_rent, close_rent
+     FROM (
+         SELECT
+             apt,
+             FIRST_VALUE(rent) OVER w AS open_rent,
+             LAST_VALUE(rent)  OVER w AS close_rent,
+             MIN(rent) OVER (PARTITION BY apt) AS low_rent,
+             MAX(rent) OVER (PARTITION BY apt) AS high_rent,
+             ROW_NUMBER() OVER (PARTITION BY apt ORDER BY date) AS rn
+         FROM rents
+         WINDOW w AS (
+             PARTITION BY apt ORDER BY date
+             ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING
+         )
+     )
+     WHERE rn = 1
+     ORDER BY apt
+     """
+
+
+     def iter_snapshot_rows(complex_dir: Path):
+         """Yield (scrape_date, apt, rent) for every canonical-format snapshot
+     line."""
+         for path in sorted(complex_dir.glob("rents-*.txt")):
+             m = SCRAPE_DATE_RE.search(path.name)
+             if not m:
+                 logger.warning(f"{path.name}: cannot parse scrape date;
+     skipping")
+                 continue
+             scrape_date = m.group(1)
+
+             with path.open(encoding="utf-8") as handle:
+                 header = handle.readline().rstrip("\n")
+                 if header.strip() != CANONICAL_HEADER:
+                     logger.info(f"{path.name}: non-canonical header {header!r};
+     skipping file")
+                     continue
+
+                 for lineno, line in enumerate(handle, start=2):
+                     fields = line.split()
+                     if not fields:
+                         continue
+                     if len(fields) < COL_UNIT + 1:
+                         logger.warning(f"{path.name}:{lineno}: too few fields
+     {fields!r}; skipping")
+                         continue
+                     apt = fields[COL_UNIT]
+                     try:
+                         rent = int(fields[COL_PRICE])
+                     except ValueError:
+                         logger.warning(f"{path.name}:{lineno}: non-integer rent
+     {fields[COL_PRICE]!r}; skipping")
+                         continue
+                     yield scrape_date, apt, rent
+
+
+     def aggregate(complex_dir: Path) -> list[tuple[str, int, int, int, int]]:
+         """Load snapshots into a temporary SQLite db and return aggregated
+     rows."""
+         fd, db_path = tempfile.mkstemp(suffix=".sqlite", prefix="rents-")
+         os.close(fd)
+         try:
+             conn = sqlite3.connect(db_path)
+             try:
+                 conn.execute(CREATE_TABLE)
+                 # One file per scrape date, unique apt per file -> no real
+     conflicts,
+                 # but OR REPLACE keeps us robust against any duplicate key.
+                 conn.executemany(
+                     "INSERT OR REPLACE INTO rents (date, apt, rent) VALUES (?,
+     ?, ?)",
+                     iter_snapshot_rows(complex_dir),
+                 )
+                 conn.commit()
+                 return conn.execute(AGGREGATE_QUERY).fetchall()
+             finally:
+                 conn.close()
+         finally:
+             Path(db_path).unlink(missing_ok=True)
+             logger.info(f"Removed temporary database {db_path}")
+
+
+     @click.command()
+     @click.argument("complex_name")
+     @click.option("--data-dir", type=click.Path(file_okay=False,
+     path_type=Path),
+                   default=Path("data"), show_default=True,
+                   help="Directory containing per-complex snapshot folders.")
+     @click.option("--no-header", is_flag=True, help="Omit the CSV header row.")
+     def main(complex_name: str, data_dir: Path, no_header: bool) -> None:
+         """Aggregate rent history for COMPLEX_NAME (a folder under --data-dir).
+
+         Outputs CSV rows: apt, open_rent, low_rent, high_rent, close_rent
+         """
+         complex_dir = data_dir / complex_name
+         if not complex_dir.is_dir():
+             raise click.BadParameter(f"{complex_dir} is not a directory")
+
+         rows = aggregate(complex_dir)
+
+         writer = csv.writer(sys.stdout)
+         if not no_header:
+             writer.writerow(["apt", "open_rent", "low_rent", "high_rent",
+     "close_rent"])
+         writer.writerows(rows)
+
+         if not rows:
+             logger.warning(f"{complex_dir}: no canonical-format data found")
+
+
+     if __name__ == "__main__":
+         main()
+
+※ recap: Built aggregate-rents.py, a uv script that loads each complex's daily rent snapshots into a temporary SQLite db and outputs per-apartment open, low, high, and close rents, skipping the old num-format files. It's tested and verified working. Next: run it on whichever complexes you need. (disable recaps in /config)
