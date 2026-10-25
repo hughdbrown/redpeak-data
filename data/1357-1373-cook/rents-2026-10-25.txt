@@ -1,0 +1,2 @@
+date  bdrm  price unit  area
+2026-12-22 1 1242 1373.2 739
